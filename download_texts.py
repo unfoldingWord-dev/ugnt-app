@@ -1,63 +1,24 @@
 from __future__ import unicode_literals, print_function
-
 import codecs
-import json
+import inspect
 import os
 import re
-
 from general_tools.file_utils import make_dir
 from general_tools.url_utils import get_url
+import common
 
 body_re = re.compile(r'<body.*?>(.*)</body>', re.UNICODE | re.DOTALL)
 verse_re = re.compile(r'<a name=\'\d{4}(\d{2})\'>.*?<table>(.*?)</table>', re.UNICODE | re.DOTALL)
 tags_ai_re = re.compile(r'(?:<a.*?>|<i.*?>)(.*?)(?:</a.*?>|</i.*?>)', re.UNICODE)
-spans_re = re.compile(r'<span.*?>(.*?)</span.*?>', re.UNICODE)
+spans_re = re.compile(r'</?span.*?>', re.UNICODE)
 td_re = re.compile(r'(<td)(.*?)(>)', re.UNICODE)
 values_re = re.compile(r'<td>(.*?)</td>', re.UNICODE)
 
 
-def get_versification():
-    """
-    Get the versification file and parse it into book, chapter and verse information
-    :return: list<Book>
-    """
-
-    api_root = 'https://raw.githubusercontent.com/unfoldingWord-dev/uw-api/develop/static'
-    vrs_file = api_root + '/versification/{0}/{0}.vrs'
-    book_file = api_root + '/versification/{0}/books.json'
-
-    # get the list of books
-    books = json.loads(get_url(book_file.format('ufw')))
-
-    # get the versification file
-    raw = get_url(vrs_file.format('ufw'))
-    lines = [l for l in raw.replace('\r', '').split('\n') if l and l[0:1] != '#']
-
-    scheme = []
-    for key, value in iter(books.items()):
-
-        if int(value[1]) < 41:
-            continue
-
-        book = {'id': key, 'name': value[0], 'idx': int(value[1]), 'chapters': []}
-
-        # find the key in the lines
-        for line in lines:
-            if line[0:3] == key:
-                chapters = line[4:].split()
-                for chapter in chapters:
-                    parts = chapter.split(':')
-                    book_chapter = (int(parts[0]), int(parts[1]))
-                    book['chapters'].append(book_chapter)
-                scheme.append(book)
-                break
-
-    return scheme
-
-
 if __name__ == '__main__':
-    nt_books = get_versification()  # type: list<dict>
-    out_dir = '/home/team43/Projects/GreekCenter/OutFiles'
+    nt_books = common.get_versification()  # type: list<dict>
+    this_dir = os.path.dirname(inspect.stack()[0][1])
+    out_dir = os.path.join(this_dir, 'OutFiles')
     make_dir(out_dir)
 
     all_file_lines = ['"book_num","book_id","chapter","verse","manuscript","date","words"']
@@ -86,7 +47,7 @@ if __name__ == '__main__':
                         continue
 
                     row = tags_ai_re.sub(r'\1', row)
-                    row = spans_re.sub(r'\1', row)
+                    row = spans_re.sub(r'', row)
                     row = td_re.sub(r'\1\3', row)
 
                     vals = values_re.findall(row)
@@ -96,9 +57,12 @@ if __name__ == '__main__':
                     if len(vals[1]) == 4 and int(vals[1]) > 1920:
                         continue
 
-                    out_csv = '"{0}","{1}","{2}","{3}"'.format(book_id, nt_book['id'], nt_chapter[0], verse_num)
+                    out_csv = '"{0}","{1}","{2}","{3}"'.format(book_id, nt_book['id'], nt_chapter[0], int(verse_num))
                     for val in vals:
                         out_csv += ',"{0}"'.format(val)
+
+                    # add end-of-row marker
+                    out_csv += ',"|"'
 
                     file_lines.append(out_csv)
                     all_file_lines.append(out_csv)
