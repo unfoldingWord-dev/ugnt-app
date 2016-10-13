@@ -109,6 +109,7 @@ if __name__ == '__main__':
     manuscripts = load_existing_manuscripts(os.path.join(this_dir, 'OutFiles', 'NewTestament.csv'))
 
     all_file_lines = ['"book_num","book_id","chapter","verse","manuscript","date","words"']
+    unified_lines = ['"book_num","book_id","chapter","verse","manuscript","date","words"']
 
     with codecs.open(os.path.join(source_dir, 'nestle1904.txt'), 'r', 'utf-8-sig') as in_file:
         nestle_content = in_file.readlines()
@@ -130,27 +131,40 @@ if __name__ == '__main__':
         # verse words start at index 6
         found_index = 5
         current_index = 6
+        skip = False
         for idx in range(0, len(words)):
 
             found_index = get_index_of_word(found_index + 1, words[idx])
 
             # if the word is not in any of the manuscripts, exit the loop
             if found_index is None:
-                ref_csv += ',"NOT ABLE"'
-                break
+                ref_csv += ',"**{0}"'.format(words[idx].strip())
+                found_index = 5
+                current_index = 6
+                skip = True
+            else:
 
-            # insert any blank indexes
-            while found_index > current_index + 1:
-                ref_csv += ',""'
-                current_index += 1
+                # insert any blank indexes
+                while found_index > current_index + 1 and not skip:
+                    ref_csv += ',""'
+                    current_index += 1
 
-            ref_csv += ',"{0}"'.format(words[idx].strip())
-            current_index = found_index
+                ref_csv += ',"{0}"'.format(words[idx].strip())
+                current_index = found_index
 
         ref_csv += ',"|"'
         all_file_lines.append(ref_csv)
+
+        for mvd in manuscript_verse_data:
+            unified_lines.append('"' + '","'.join(mvd) + '"')
+
+        unified_lines.append(ref_csv)
         print(ref_csv)
 
     with codecs.open(os.path.join(out_dir, 'NewTestament.csv'), 'w', encoding='utf-8') as out_file:
         for file_line in all_file_lines:
+            out_file.write(file_line + '\n')
+
+    with codecs.open(os.path.join(out_dir, 'Unified.csv'), 'w', encoding='utf-8') as out_file:
+        for file_line in unified_lines:
             out_file.write(file_line + '\n')
