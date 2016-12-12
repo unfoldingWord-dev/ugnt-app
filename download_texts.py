@@ -54,7 +54,7 @@ if __name__ == '__main__':
                     if len(vals) < 3:
                         continue
 
-                    if len(vals[1]) == 4 and int(vals[1]) > 1920:
+                    if vals[0] == 'NA28':
                         continue
 
                     out_csv = '"{0}","{1}","{2}","{3}"'.format(book_id, nt_book['id'], nt_chapter[0], int(verse_num))

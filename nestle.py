@@ -1,3 +1,4 @@
+# coding=utf-8
 from __future__ import unicode_literals, print_function
 import codecs
 import inspect
@@ -87,6 +88,9 @@ def get_index_of_word(start_idx, nestle_word):
     if not manuscript_verse_data:
         return start_idx
 
+    # remove dialog quotes
+    nestle_word = nestle_word.replace('—', '')
+
     for i in range(start_idx, len(manuscript_verse_data[0]) - 1):
 
         # loop through each of the manuscripts at this word index
@@ -114,6 +118,7 @@ if __name__ == '__main__':
     with codecs.open(os.path.join(source_dir, 'nestle1904.txt'), 'r', 'utf-8-sig') as in_file:
         nestle_content = in_file.readlines()
 
+    test_book = ''
     for line in nestle_content:
 
         line_parts = line.split('\t')
@@ -124,13 +129,19 @@ if __name__ == '__main__':
                                                                    ref_parts[1], ref_parts[2])
 
         clean_text = remove_re.sub('', line_parts[1])
+
+        # fix common mis-alignment issues
+        clean_text = clean_text.replace('μή ποτε', 'μή_ποτε')
+        clean_text = clean_text.replace('μή ποτέ', 'μή_ποτέ')
+        clean_text = clean_text.replace('Μή ποτε', 'Μή_ποτε')
+
         words = clean_text.split(' ')  # type: list
 
         manuscript_verse_data = get_manuscript_verse(book['id'], ref_parts[1], ref_parts[2], manuscripts)
 
         # verse words start at index 6
         found_index = 5
-        current_index = 6
+        current_index = 5
         skip = False
         for idx in range(0, len(words)):
 
@@ -152,14 +163,36 @@ if __name__ == '__main__':
                 ref_csv += ',"{0}"'.format(words[idx].strip())
                 current_index = found_index
 
+        # add blank spaces at the end
+        if not skip and len(manuscript_verse_data) > 0:
+            len_target = len(manuscript_verse_data[0])
+            while len(ref_csv.split(',')) < len_target - 1:
+                ref_csv += ',""'
+
         ref_csv += ',"|"'
+        if len(manuscript_verse_data) > 0 and len(ref_csv.split(',')) > len(manuscript_verse_data[0]):
+            ref_csv += ',"**"'
+
         all_file_lines.append(ref_csv)
 
+        found_wh = False
         for mvd in manuscript_verse_data:
-            unified_lines.append('"' + '","'.join(mvd) + '"')
+            if mvd[4] == 'WH':
+                unified_lines.append(ref_csv)
+                found_wh = True
 
-        unified_lines.append(ref_csv)
+            unified_lines.append('"' + '","'.join(mvd) + '"')
+            test_book = mvd[1]
+
+        # this is an exception
+        if test_book == 'MRK' and ',"99",' in ref_csv:
+            unified_lines.append(ref_csv)
+            found_wh = True
+
         print(ref_csv)
+        if not found_wh:
+            print('ERROR: WH text not found for this verse.')
+            quit()
 
     with codecs.open(os.path.join(out_dir, 'NewTestament.csv'), 'w', encoding='utf-8') as out_file:
         for file_line in all_file_lines:
